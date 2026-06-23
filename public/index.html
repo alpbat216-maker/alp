@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>SpeedUp Uploader</title>
+</head>
+<body>
+  <h1>SpeedUp Uploader</h1>
+  <p>1) If you haven't authorized the app to upload to your YouTube channel, open <a href="/auth" target="_blank">/auth</a> and follow the OAuth flow.</p>
+
+  <form id="uploadForm" enctype="multipart/form-data" method="post" action="/upload">
+    <div>
+      <label>Audio (mp3): <input type="file" name="audio" accept=".mp3,audio/*" required /></label>
+    </div>
+    <div>
+      <label>Thumbnail (jpg/png): <input type="file" name="thumbnail" accept="image/*" /></label>
+    </div>
+    <div>
+      <label>Artist: <input type="text" name="artist" /></label>
+    </div>
+    <div>
+      <label>Song: <input type="text" name="song" /></label>
+    </div>
+    <div>
+      <label>Or full Title: <input type="text" name="title" placeholder="Optional full title (we will append // Speed Up)" /></label>
+    </div>
+    <div>
+      <label>Speed (e.g. 1.25 for +25%): <input type="number" step="0.01" name="speed" value="1.25" /></label>
+    </div>
+    <div>
+      <label>Auto-upload to YouTube: <input type="checkbox" name="autoUpload" value="true" /></label>
+    </div>
+    <div>
+      <button type="submit">Upload & Process</button>
+    </div>
+  </form>
+
+  <div id="result"></div>
+
+  <script>
+    const form = document.getElementById('uploadForm');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      // if autoUpload checkbox checked, ensure proper value
+      if (!fd.get('autoUpload')) fd.set('autoUpload', 'false');
+      const resDiv = document.getElementById('result');
+      resDiv.textContent = 'Processing... this may take some time.';
+      try {
+        const resp = await fetch('/upload', { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (resp.ok) {
+          resDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+        } else {
+          resDiv.textContent = 'Error: ' + (data.message || JSON.stringify(data));
+        }
+      } catch (err) {
+        resDiv.textContent = 'Network error: ' + err.message;
+      }
+    });
+  </script>
+</body>
+</html>
