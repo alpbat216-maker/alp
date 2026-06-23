@@ -8,7 +8,8 @@ WORKDIR /usr/src/app
 
 # package.json kopyala ve bağımlılıkları kur
 COPY package*.json ./
-RUN npm ci --production
+# Use npm install instead of npm ci because package-lock.json is not present
+RUN npm install --production
 
 # Uygulama dosyalarını kopyala
 COPY . .
