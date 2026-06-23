@@ -1,17 +1,3 @@
-/**
- * Basic Node.js + Express server
- * - / -> static upload form (public/index.html)
- * - /upload -> receive mp3 + thumbnail + metadata, process speedup, build video
- * - /auth -> start Google OAuth flow
- * - /oauth2callback -> receive tokens and store refresh token
- * - /upload-to-youtube -> upload generated mp4 using stored refresh token
- *
- * NOTES:
- * - Requires ffmpeg installed and on PATH.
- * - For best audio quality use ffmpeg built with librubberband so ffmpeg supports the "rubberband" filter.
- * - Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SERVER_ROOT_URL in .env
- */
-
 require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
@@ -51,7 +37,17 @@ function loadTokens() {
 function ffmpegHasRubberband(cb) {
   ffmpeg().getAvailableFilters((err, filters) => {
     if (err) return cb(false);
-    cb(filters && filters.some(f => f === 'rubberband'));
+    try {
+      // fluent-ffmpeg may return an object (map) or an array; handle both
+      if (Array.isArray(filters)) return cb(filters.some(f => f === 'rubberband'));
+      if (filters && typeof filters === 'object') {
+        if (Object.prototype.hasOwnProperty.call(filters, 'rubberband')) return cb(true);
+        return cb(Object.keys(filters).some(k => k === 'rubberband'));
+      }
+    } catch (e) {
+      return cb(false);
+    }
+    cb(false);
   });
 }
 
@@ -91,7 +87,7 @@ app.get('/auth', (req, res) => {
 
 app.get('/oauth2callback', async (req, res) => {
   const code = req.query.code;
-  if (!code) return res.status(400).send('Missing code');
+  if (!code) return res.status(400).json({ error: 'Missing code' });
   try {
     const { tokens } = await oAuth2Client.getToken(code);
     oAuth2Client.setCredentials(tokens);
@@ -99,7 +95,7 @@ app.get('/oauth2callback', async (req, res) => {
     res.send('Auth successful — tokens saved. You can close this tab.');
   } catch (err) {
     console.error(err);
-    res.status(500).send('Auth failed: ' + err.message);
+    res.status(500).json({ error: 'Auth failed: ' + err.message });
   }
 });
 
@@ -108,7 +104,7 @@ app.get('/oauth2callback', async (req, res) => {
 app.post('/upload', upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'thumbnail', maxCount: 1 }]), async (req, res) => {
   try {
     const audioFile = req.files['audio']?.[0];
-    if (!audioFile) return res.status(400).send('audio file required (mp3)');
+    if (!audioFile) return res.status(400).json({ error: 'audio file required (mp3)' });
     const thumbFile = req.files['thumbnail']?.[0]; // optional
     const { title, artist, song, speed = '1.25', autoUpload } = req.body;
 
@@ -202,7 +198,7 @@ app.post('/upload', upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'thum
     if (autoUpload === 'true' || autoUpload === true) {
       // ensure tokens exist
       const tokens = loadTokens();
-      if (!tokens) return res.status(400).send('App not authorized: please visit /auth and authorize first.');
+      if (!tokens) return res.status(400).json({ error: 'App not authorized: please visit /auth and authorize first.' });
       oAuth2Client.setCredentials(tokens);
       const youtube = google.youtube({ version: 'v3', auth: oAuth2Client });
       const stat = fs.statSync(videoPath);
@@ -250,16 +246,16 @@ app.post('/upload', upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'thum
     });
   } catch (err) {
     console.error(err);
-    res.status(500).send('Error: ' + err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
 // Endpoint to upload an already-processed video file to YouTube given its path (demo)
 app.post('/upload-to-youtube', express.json(), async (req, res) => {
   const { videoPath, title, description, tags } = req.body;
-  if (!videoPath || !fs.existsSync(videoPath)) return res.status(400).send('videoPath missing or not found');
+  if (!videoPath || !fs.existsSync(videoPath)) return res.status(400).json({ error: 'videoPath missing or not found' });
   const tokens = loadTokens();
-  if (!tokens) return res.status(400).send('App not authorized: please visit /auth and authorize first.');
+  if (!tokens) return res.status(400).json({ error: 'App not authorized: please visit /auth and authorize first.' });
   oAuth2Client.setCredentials(tokens);
   const youtube = google.youtube({ version: 'v3', auth: oAuth2Client });
   try {
@@ -274,7 +270,7 @@ app.post('/upload-to-youtube', express.json(), async (req, res) => {
     res.json({ message: 'Uploaded', videoId: resUpload.data.id });
   } catch (err) {
     console.error(err);
-    res.status(500).send('Upload failed: ' + err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
