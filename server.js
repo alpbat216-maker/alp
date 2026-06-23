@@ -1,6 +1,8 @@
 // server.js
 // Basit Express sunucusu: / serve form, /auth ve /oauth2callback Google OAuth, /upload ffmpeg ile hızlandırma
 // Önce ffmpeg-setup'i require et (ffmpeg binary'lerini fluent-ffmpeg'e bildirir)
+console.log('SERVER_JS_START: server.js loading');
+console.log('SERVER_JS_START: server.js loading'); require('./ffmpeg-setup');
 require('./ffmpeg-setup');
 
 const express = require('express');
